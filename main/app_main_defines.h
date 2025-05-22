@@ -1,6 +1,6 @@
 #define APP_SUPPORT_MQTT_TEST
 
-#define APP_SUPPORT_UART2
+//#define APP_SUPPORT_UART2
 #define APP_SUPPORT_CLI
 //#define APP_SUPPORT_FILESYSTEM
 #define APP_SUPPORT_NV
@@ -22,3 +22,5 @@
 #define _APP_PULSE_OP1 			42
 #define _APP_I2C_SDA_PIN		41
 #define _APP_I2C_SCL_PIN		40
+#define _APP_UART2_TX			17
+#define _APP_UART2_RX			18

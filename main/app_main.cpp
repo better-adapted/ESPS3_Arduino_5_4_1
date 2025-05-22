@@ -1,13 +1,10 @@
-/*
- * SPDX-FileCopyrightText: 2010-2022 Espressif Systems (Shanghai) CO LTD
- *
- * SPDX-License-Identifier: CC0-1.0
- */
-
 #include "app_main.h"
 
+const char *hardware_version = { "SLL_PULSER" };
+const char *firmware_version = { "0.0.0.0" };
+
 #ifdef APP_SUPPORT_OTA_PULL
-#define OTA_PULL_JSON_URL   "http://www.sperrinlogic.com/firmware/update.json" // this is where you'll post your JSON filter file
+#define OTA_PULL_JSON_URL   "http://www.sperrinlogic.com/firmware/update.json"
 #include "ESP32OTAPull.h"
 ESP32OTAPull ota;
 static int ota_ret;
@@ -26,9 +23,6 @@ static uint32_t ota_check_interval_mins = 60; // mins
 static uint32_t ota_check_last_ms=1;
 #endif
 
-const char *hardware_version = { "SLL_PULSER" };
-const char *firmware_version = { "0.0.0.0" };
-
 #ifdef APP_SUPPORT_CLI
 #include <CLI.h>
 void CLI_Service(Stream *pStream);
@@ -44,6 +38,74 @@ void WDT_Feed(int pTrace,bool pPoll);
 static bool WDT_feed_disable;
 
 static App_debug_flags_t DebugFlags;
+
+class pin_pulser
+{
+	int _PinNumber=-1;
+	
+	uint32_t last_service_tick;
+	uint32_t High_Ms_Tick;
+	uint32_t Low_Ms_Tick;	
+	
+	bool ActiveState = true;
+		
+	int Seq=0;	
+	
+	
+public:
+	uint32_t LowMs = 100;
+	uint32_t HighMs = 100;
+	uint32_t PulsesToDo = 0;
+
+	pin_pulser(int pPinNumber,bool pActiveState=false, int pLowMs=100, int pHighMs=100)
+	{
+		_PinNumber = pPinNumber;
+		LowMs=pLowMs;
+		HighMs=pHighMs;
+		ActiveState = pActiveState;
+		digitalWrite(_PinNumber,!ActiveState);
+	}
+	
+	void service()
+	{
+		if(_PinNumber == -1)
+			return;
+
+		if(PulsesToDo>0)
+		{
+			if(Seq == 0)
+			{
+				Seq = 1;	
+				digitalWrite(_PinNumber,ActiveState);
+				High_Ms_Tick = millis() + HighMs;
+				Low_Ms_Tick = millis() + LowMs;				
+			}
+			
+			if(Seq == 1)
+			{
+				if(millis() >= High_Ms_Tick)
+				{
+					digitalWrite(_PinNumber,!ActiveState);
+					Seq = 2;
+				}
+			}
+						
+			if(Seq == 2)
+			{
+				if(millis() >= Low_Ms_Tick)
+				{
+					PulsesToDo--;
+					Seq = 0;
+				}
+			}
+			
+		}
+				
+	}
+};
+
+pin_pulser Op0(_APP_PULSE_OP0,false,500,500);
+pin_pulser Op1(_APP_PULSE_OP1,false,500,500);
 
 String CLI_Prefix()
 {
@@ -179,7 +241,7 @@ void setup()
 	Version_Info(Stream_UART0);
 
 #ifdef APP_SUPPORT_UART2
-	Serial2.begin(115200, SERIAL_8N1, 16, 17);
+	Serial2.begin(115200, SERIAL_8N1, _APP_UART2_RX, _APP_UART2_TX);
 	Stream_UART2 = &Serial2;
 	Stream_UART2->println();
 	Version_Info(Stream_UART2);
@@ -187,13 +249,18 @@ void setup()
 
 
 	Stream_UART0->println("setup() started");
+#ifdef APP_SUPPORT_UART2
 	Stream_UART2->println("setup() started");
-
-    esp_restart();	
+#endif
 }
 
 void mem_check()
 {
+  if(!DebugFlags.bits.ShowMemUsage)
+  {
+	  return;
+  }
+  	
   static uint32_t last_mem_check;
   if((millis()- last_mem_check)>10000)
   {
@@ -313,7 +380,7 @@ int CLI_Process_String(Stream *pOpStream,String pInput)
 	int processed = 0;
 	String Prompt = ">";	
 
-	if (pInput.startsWith("RESET"))
+	if (pInput.startsWith("RESTART"))
 	{
 		processed = 1;
 		pOpStream->println("OK");
@@ -406,6 +473,50 @@ int CLI_Process_String(Stream *pOpStream,String pInput)
 		return 0;
 	}	
 
+	if(CLI_Scan_UINT32_Setting(pOpStream, pInput, "OP0P",&Op0.PulsesToDo, 0, 9999999, 10,Prompt))
+	{
+		processed = 1;
+		pOpStream->println("OK");
+		return 0;
+	}	
+
+	if(CLI_Scan_UINT32_Setting(pOpStream, pInput, "OP0L",&Op0.LowMs, 0, 9999999, 10,Prompt))
+	{
+		processed = 1;
+		pOpStream->println("OK");
+		return 0;
+	}	
+
+	if(CLI_Scan_UINT32_Setting(pOpStream, pInput, "OP0H",&Op0.HighMs, 0, 9999999, 10,Prompt))
+	{
+		processed = 1;
+		pOpStream->println("OK");
+		return 0;
+	}
+	
+	if(CLI_Scan_UINT32_Setting(pOpStream, pInput, "OP1P",&Op1.PulsesToDo, 0, 9999999, 10,Prompt))
+	{
+		processed = 1;
+		pOpStream->println("OK");
+		return 0;
+	}	
+
+	if(CLI_Scan_UINT32_Setting(pOpStream, pInput, "OP1L",&Op1.LowMs, 0, 9999999, 10,Prompt))
+	{
+		processed = 1;
+		pOpStream->println("OK");
+		return 0;
+	}	
+
+	if(CLI_Scan_UINT32_Setting(pOpStream, pInput, "OP1H",&Op1.HighMs, 0, 9999999, 10,Prompt))
+	{
+		processed = 1;
+		pOpStream->println("OK");
+		return 0;
+	}	
+
+
+
 #ifdef APP_SUPPORT_OTA_COMMON
 	if (pInput.startsWith("OTA_CHECK"))
 	{
@@ -495,7 +606,9 @@ void CLI_Service(Stream *pInStream,Stream *pOutStream)
 void CLI_loop()
 {
 	CLI_Service(Stream_UART0,Stream_UART0);
+#ifdef APP_SUPPORT_UART2	
 	CLI_Service(Stream_UART2,Stream_UART2);
+#endif	
 }
 
 #ifdef APP_HTTP_POST
@@ -687,7 +800,9 @@ void wifi_check()
     strcat(temp,Wifi_Status_As_String(WiFi_status_now).c_str());
 
     Stream_UART0->println(temp);
+#ifdef APP_SUPPORT_UART2    
     Stream_UART2->println(temp);
+#endif    
   }
 }
 
@@ -705,7 +820,9 @@ void loop()
 	if(!loop_started_msg)
 	{
 		Stream_UART0->println("loop() started");
+#ifdef APP_SUPPORT_UART2		
 		Stream_UART2->println("loop() started");
+#endif		
 		loop_started_msg=true;		
 	}
 	
@@ -717,6 +834,8 @@ void loop()
 	ESC_service();
 	//Service_ConfigSwitch();
 	//Service_BootSwitch();	
+	Op0.service();
+	Op1.service();
 
 	if(!ESC_Active())
 	{
