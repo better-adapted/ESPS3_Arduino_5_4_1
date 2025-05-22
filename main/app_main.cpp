@@ -50,20 +50,35 @@ class pin_pulser
 	bool ActiveState = true;
 		
 	int Seq=0;	
-	
-	
+		
+	void SetOp(bool pState)
+	{
+		if(_PinNumber == -1)
+			return;		
+		
+		if(pState)
+		{
+//			pinMode(_PinNumber,OUTPUT);
+			digitalWrite(_PinNumber,LOW);
+		}
+		else
+		{
+//			pinMode(_PinNumber,INPUT);
+			digitalWrite(_PinNumber,HIGH);			
+		}		
+	}	
+		
 public:
 	uint32_t LowMs = 100;
 	uint32_t HighMs = 100;
 	uint32_t PulsesToDo = 0;
 
-	pin_pulser(int pPinNumber,bool pActiveState=false, int pLowMs=100, int pHighMs=100)
+	pin_pulser(int pPinNumber, int pLowMs=100, int pHighMs=100)
 	{
 		_PinNumber = pPinNumber;
 		LowMs=pLowMs;
 		HighMs=pHighMs;
-		ActiveState = pActiveState;
-		digitalWrite(_PinNumber,!ActiveState);
+		SetOp(false);
 	}
 	
 	void service()
@@ -76,7 +91,8 @@ public:
 			if(Seq == 0)
 			{
 				Seq = 1;	
-				digitalWrite(_PinNumber,ActiveState);
+				SetOp(true);
+				
 				High_Ms_Tick = millis() + HighMs;
 				Low_Ms_Tick = millis() + LowMs;				
 			}
@@ -85,7 +101,7 @@ public:
 			{
 				if(millis() >= High_Ms_Tick)
 				{
-					digitalWrite(_PinNumber,!ActiveState);
+					SetOp(false);
 					Seq = 2;
 				}
 			}
@@ -104,8 +120,8 @@ public:
 	}
 };
 
-pin_pulser Op0(_APP_PULSE_OP0,false,500,500);
-pin_pulser Op1(_APP_PULSE_OP1,false,500,500);
+static pin_pulser Op0(_APP_PULSE_OP0,500,500);
+static pin_pulser Op1(_APP_PULSE_OP1,500,500);
 
 String CLI_Prefix()
 {
@@ -221,13 +237,11 @@ void pcnt_clear()
 
 void Setup_IO()
 {
-	pinMode(_APP_PULSE_OP0,INPUT);
-	digitalWrite(_APP_PULSE_OP0,HIGH);
 	pinMode(_APP_PULSE_OP0,OUTPUT);
+	digitalWrite(_APP_PULSE_OP0,HIGH);
 	
-	pinMode(_APP_PULSE_OP1,INPUT);
-	digitalWrite(_APP_PULSE_OP1,HIGH);
 	pinMode(_APP_PULSE_OP1,OUTPUT);
+	digitalWrite(_APP_PULSE_OP1,HIGH);
 }
 
 void setup()

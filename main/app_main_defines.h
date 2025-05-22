@@ -18,8 +18,8 @@
 #define MQTT_TEST_MAX_OUTPUT_SIZE 8192
 
 #define _APP_BOOT_SWITCH		0
-#define _APP_PULSE_OP0 			2
-#define _APP_PULSE_OP1 			42
+#define _APP_PULSE_OP0 			40
+#define _APP_PULSE_OP1 			39
 #define _APP_I2C_SDA_PIN		41
 #define _APP_I2C_SCL_PIN		40
 #define _APP_UART2_TX			17
